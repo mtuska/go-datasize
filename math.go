@@ -1,101 +1,96 @@
 package datasize
 
-/////////////
-// BitData //
-/////////////
-
-// Add adds two BitData values.
-func (b BitData) Add(other BitData) BitData {
-	return b + other
+// Add
+func (d DataSize) Add(other DataSize) DataSize {
+	n := d
+	n.bits += other.bits
+	if n.bits >= byteSize {
+		n.bytes += byteData(n.bits / 8)
+		n.bits %= 8
+	}
+	n.bytes += other.bytes
+	return n
 }
 
-// AddBytes adds a ByteData value to the current BitData value.
-func (b BitData) AddBytes(other ByteData) BitData {
-	return b + other.ToBits()
+// AddBits
+func (d DataSize) AddBits(bits bitData) DataSize {
+	n := d
+	n.bits += bits
+	if n.bits >= byteSize {
+		n.bytes += byteData(n.bits / 8)
+		n.bits %= byteSize
+	}
+	return n
 }
 
-// Sub subtracts another BitData value.
-func (b BitData) Sub(other BitData) BitData {
-	return b - other
+// AddBytes
+func (d DataSize) AddBytes(bytes byteData) DataSize {
+	n := d
+	n.bytes += bytes
+	return n
 }
 
-// SubBytes subtracts a ByteData value from the current BitData value.
-func (b BitData) SubBits(other ByteData) BitData {
-	return b - other.ToBits()
+// Sub
+func (d DataSize) Sub(other DataSize) DataSize {
+	n := d
+	n.bytes -= other.bytes
+	n.bits -= other.bits
+	if n.bits < -byteSize {
+		n.bytes -= byteData(n.bits / 8)
+		n.bits %= byteSize
+	}
+	return n
 }
 
-// Mul multiplies BitData by a scalar.
-func (b BitData) Mul(factor int64) BitData {
-	return b * BitData(factor)
+// SubBits
+func (d DataSize) SubBits(bits bitData) DataSize {
+	n := d
+	n.bits -= bits
+	if n.bits < -byteSize {
+		n.bytes -= byteData(n.bits / 8)
+		n.bits %= byteSize
+	}
+	return n
 }
 
-// MulFloat multiplies BitData by a floating-point factor.
-func (b BitData) MulFloat(factor float64) BitData {
-	return BitData(float64(b) * factor)
+// SubBytes
+func (d DataSize) SubBytes(bytes byteData) DataSize {
+	n := d
+	n.bytes -= bytes
+	return n
 }
 
-// Div divides BitData by a scalar.
-func (b BitData) Div(divisor int64) BitData {
-	return b / BitData(divisor)
+// Mul
+func (d DataSize) Mul(factor int64) DataSize {
+	n := d
+	n.bytes *= byteData(factor)
+	n.bits *= bitData(factor)
+	if n.bits >= byteSize {
+		n.bytes += byteData(n.bits / 8)
+		n.bits %= byteSize
+	}
+	return n
 }
 
-// Clamp limits the BitData value within a specified range.
-func (b BitData) Clamp(min, max BitData) BitData {
-	if b < min {
+// Div
+func (d DataSize) Div(divisor int64) DataSize {
+	n := d
+	n.bytes /= byteData(divisor)
+	n.bits /= bitData(divisor)
+	if n.bits < 0 {
+		n.bytes -= byteData(n.bits / 8)
+		n.bits %= byteSize
+	}
+	return n
+}
+
+// Clamp
+func (d DataSize) Clamp(min, max DataSize) DataSize {
+	if d.bytes < min.bytes || (d.bytes == min.bytes && d.bits < min.bits) {
 		return min
 	}
-	if b > max {
+	if d.bytes > max.bytes || (d.bytes == max.bytes && d.bits > max.bits) {
 		return max
 	}
-	return b
-}
-
-//////////////
-// ByteData //
-//////////////
-
-// Add adds two ByteData values.
-func (b ByteData) Add(other ByteData) ByteData {
-	return b + other
-}
-
-// AddBits adds a BitData value to the current ByteData value.
-func (b ByteData) AddBits(other BitData) ByteData {
-	return b + other.ToBytes()
-}
-
-// Sub subtracts another ByteData value.
-func (b ByteData) Sub(other ByteData) ByteData {
-	return b - other
-}
-
-// SubBits subtracts a BitData value from the current ByteData value.
-func (b ByteData) SubBits(other BitData) ByteData {
-	return b - other.ToBytes()
-}
-
-// Mul multiplies ByteData by a scalar.
-func (b ByteData) Mul(factor int64) ByteData {
-	return b * ByteData(factor)
-}
-
-// MulFloat multiplies ByteData by a floating-point factor.
-func (b ByteData) MulFloat(factor float64) ByteData {
-	return ByteData(float64(b) * factor)
-}
-
-// Div divides ByteData by a scalar.
-func (b ByteData) Div(divisor int64) ByteData {
-	return b / ByteData(divisor)
-}
-
-// Clamp limits the ByteData value within a specified range.
-func (b ByteData) Clamp(min, max ByteData) ByteData {
-	if b < min {
-		return min
-	}
-	if b > max {
-		return max
-	}
-	return b
+	return d
 }

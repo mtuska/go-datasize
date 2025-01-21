@@ -1,16 +1,18 @@
 package datasize
 
 import (
+	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"regexp"
 	"strconv"
 	"strings"
 )
 
-func parse(input string) (value float64, unit string, err error) {
-	re := regexp.MustCompile(`^([\d,]+(\.\d+)?)\s?([a-zA-Z]+)$`)
+func parseString(input string) (value float64, unit string, err error) {
+	re := regexp.MustCompile(`^([\d,]+(\.\d+)?([eE][-+]?\d+)?)\s?([a-zA-Z]+)$`)
 	matches := re.FindStringSubmatch(input)
-	if len(matches) != 4 {
+	if len(matches) != 5 {
 		err = errors.New("invalid format, expected '<value><unit>' or '<value> <unit>'")
 		return
 	}
@@ -19,78 +21,107 @@ func parse(input string) (value float64, unit string, err error) {
 	if err != nil {
 		return
 	}
-	unit = matches[3]
+	unit = matches[4]
+	if len(unit) > 2 {
+		switch unit[2:] {
+		case "ps", "/s":
+			unit = unit[:2]
+		}
+	}
 	return
 }
 
-/////////////
-// BitData //
-/////////////
-
-// ParseBits parses a human-readable data-size/data-rate string (e.g., "10Mb"; "10Mbps") into BitData.
-func ParseBits(input string) (BitData, error) {
-	units := map[string]BitData{
-		"b":  Bit,
-		"Kb": KiloBit,
-		"Mb": MegaBit,
-		"Gb": GigaBit,
-		"Tb": TeraBit,
-		"Pb": PetaBit,
-		"Eb": ExaBit,
-
-		"Kib": KibiBit,
-		"Mib": MebiBit,
-		"Gib": GibiBit,
-		"Tib": TebiBit,
-		"Pib": PebiBit,
-		"Eib": ExbiBit,
-	}
-
-	value, sunit, err := parse(input)
-	if err != nil {
-		return 0, err
-	}
-
-	unit, ok := units[sunit]
-	if !ok {
-		return 0, errors.New("unknown unit")
-	}
-
-	return BitData(value * float64(unit)), nil
+var bitUnitMap = map[string]bitData{
+	"b":  Bit,
+	"Kb": KiloBit,
+	"Mb": MegaBit,
+	"Gb": GigaBit,
+	"Tb": TeraBit,
+	"Pb": PetaBit,
+	"Eb": ExaBit,
 }
 
-//////////////
-// ByteData //
-//////////////
+var byteUnitMap = map[string]byteData{
+	"B":  Byte,
+	"KB": KiloByte,
+	"MB": MegaByte,
+	"GB": GigaByte,
+	"TB": TeraByte,
+	"PB": PetaByte,
+	"EB": ExaByte,
+}
+var binaryByteUnitMap = map[string]byteData{
+	"KiB": KibiByte,
+	"MiB": MebiByte,
+	"GiB": GibiByte,
+	"TiB": TebiByte,
+	"PiB": PebiByte,
+	"EiB": ExbiByte,
+}
 
-// ParseBytes parses a human-readable data-size/data-rate string (e.g., "10MB"; "10MBps") into ByteData.
-func ParseBytes(input string) (ByteData, error) {
-	units := map[string]ByteData{
-		"B":  Byte,
-		"KB": KiloByte,
-		"MB": MegaByte,
-		"GB": GigaByte,
-		"TB": TeraByte,
-		"PB": PetaByte,
-		"EB": ExaByte,
-
-		"KiB": KibiByte,
-		"MiB": MebiByte,
-		"GiB": GibiByte,
-		"TiB": TebiByte,
-		"PiB": PebiByte,
-		"EiB": ExbiByte,
-	}
-
-	value, sunit, err := parse(input)
+func Parse(input string) (ds DataSize, err error) {
+	value, sunit, err := parseString(input)
 	if err != nil {
-		return 0, err
+		return
 	}
 
-	unit, ok := units[sunit]
-	if !ok {
-		return 0, errors.New("unknown unit")
+	if unit, ok := bitUnitMap[sunit]; ok {
+		data := bitData(value * float64(unit))
+		ds.datatype = Bits
+		ds = ds.AddBits(data)
+		return
+	}
+	if unit, ok := byteUnitMap[sunit]; ok {
+		data := byteData(value * float64(unit))
+		ds.datatype = DecimalBytes
+		ds = ds.AddBytes(data)
+		return
+	}
+	if unit, ok := binaryByteUnitMap[sunit]; ok {
+		data := byteData(value * float64(unit))
+		ds.datatype = BinaryBytes
+		ds = ds.AddBytes(data)
+		return
 	}
 
-	return ByteData(value * float64(unit)), nil
+	err = errors.New("unknown unit: " + sunit)
+	return
+}
+
+// UnmarshalJSON
+func (ds *DataSize) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	parsed, err := Parse(s)
+	if err != nil {
+		return err
+	}
+	*ds = parsed
+	return nil
+}
+
+// MarshalJSON for BitData
+func (ds *DataSize) MarshalJSON() ([]byte, error) {
+	return json.Marshal(ds.String())
+}
+
+// UnmarshalXML for BitData
+func (ds *DataSize) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	var s string
+	if err := d.DecodeElement(&s, &start); err != nil {
+		return err
+	}
+	parsed, err := Parse(s)
+	if err != nil {
+		return err
+	}
+	*ds = parsed
+	return nil
+}
+
+// MarshalXML for BitData
+func (ds *DataSize) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	return e.EncodeElement(ds.String(), start)
 }

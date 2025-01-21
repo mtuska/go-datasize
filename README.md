@@ -19,7 +19,7 @@ import (
 )
 
 func main() {
-    var size datasize.ByteData = 1024 * 1024 // 1 MB
-    fmt.Println(size.String()) // "1.00 MB"
+    var size datasize.Parse("1 MB")
+    fmt.Println(size.String())
 }
 ```
